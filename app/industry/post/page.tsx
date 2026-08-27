@@ -20,11 +20,15 @@ type Skill = {
   category: string;
 };
 
+type Level = "beginner" | "intermediate" | "advanced";
+
 type RequiredSkill = {
   skill_id: string;
   name: string;
   category: string;
   proficiency: number;
+  skill_level: Level;
+  accept_higher_levels: boolean;
 };
 
 export default function PostOpportunityPage() {
@@ -40,6 +44,8 @@ export default function PostOpportunityPage() {
 
   const [selectedSkill, setSelectedSkill] = useState("");
   const [proficiency, setProficiency] = useState(70);
+  const [skillLevel, setSkillLevel] = useState<Level>("intermediate");
+  const [acceptHigherLevels, setAcceptHigherLevels] = useState(true);
 
   const [loadingSkills, setLoadingSkills] = useState(true);
   const [posting, setPosting] = useState(false);
@@ -88,11 +94,15 @@ export default function PostOpportunityPage() {
         name: skill.name,
         category: skill.category,
         proficiency,
+        skill_level: skillLevel,
+        accept_higher_levels: acceptHigherLevels,
       },
     ]);
 
     setSelectedSkill("");
     setProficiency(70);
+    setSkillLevel("intermediate");
+    setAcceptHigherLevels(true);
     setError("");
   }
 
@@ -114,6 +124,34 @@ export default function PostOpportunityPage() {
     );
   }
 
+  /* Update required skill level */
+  function updateSkillLevel(skillId: string, value: Level) {
+    setRequiredSkills(
+      requiredSkills.map((skill) =>
+        skill.skill_id === skillId
+          ? { ...skill, skill_level: value }
+          : skill
+      )
+    );
+  }
+
+  /* Allow higher levels to satisfy a lower-level requirement */
+  function updateAcceptHigherLevels(
+    skillId: string,
+    value: boolean
+  ) {
+    setRequiredSkills(
+      requiredSkills.map((skill) =>
+        skill.skill_id === skillId
+          ? {
+              ...skill,
+              accept_higher_levels: value,
+            }
+          : skill
+      )
+    );
+  }
+
   /* Submit opportunity */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -128,6 +166,19 @@ export default function PostOpportunityPage() {
 
     if (requiredSkills.length === 0) {
       setError("Add at least one required skill.");
+      return;
+    }
+
+    const invalidSkill = requiredSkills.find(
+      (skill) =>
+        skill.proficiency < 1 ||
+        skill.proficiency > 100
+    );
+
+    if (invalidSkill) {
+      setError(
+        "Minimum skill score must be between 1% and 100%."
+      );
       return;
     }
 
@@ -164,6 +215,8 @@ export default function PostOpportunityPage() {
         opportunity_id: opportunity.id,
         skill_id: skill.skill_id,
         required_proficiency: skill.proficiency,
+        required_level: skill.skill_level,
+        accept_higher_levels: skill.accept_higher_levels,
         importance: skill.proficiency,
       }));
 
@@ -356,7 +409,7 @@ export default function PostOpportunityPage() {
             </div>
 
             {/* Add Skill */}
-            <div className="grid md:grid-cols-[1fr_150px_auto] gap-3 items-end">
+            <div className="grid md:grid-cols-[1fr_170px_150px_auto] gap-3 items-end">
 
               <div>
                 <label className="text-xs text-slate-400">
@@ -392,7 +445,25 @@ export default function PostOpportunityPage() {
 
               <div>
                 <label className="text-xs text-slate-400">
-                  Required %
+                  Minimum Skill Level
+                </label>
+
+                <select
+                  value={skillLevel}
+                  onChange={(e) =>
+                    setSkillLevel(e.target.value as Level)
+                  }
+                  className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                >
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400">
+                  Minimum Score %
                 </label>
 
                 <input
@@ -442,6 +513,42 @@ export default function PostOpportunityPage() {
                         <p className="text-xs text-slate-500 mt-1">
                           {skill.category}
                         </p>
+
+                        <div className="flex flex-wrap items-center gap-2 mt-3">
+                          <span className="text-[11px] uppercase tracking-wider text-slate-500">
+                            Minimum Level
+                          </span>
+
+                          <select
+                            value={skill.skill_level}
+                            onChange={(e) =>
+                              updateSkillLevel(
+                                skill.skill_id,
+                                e.target.value as Level
+                              )
+                            }
+                            className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500"
+                          >
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                          </select>
+
+                          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={skill.accept_higher_levels}
+                              onChange={(e) =>
+                                updateAcceptHigherLevels(
+                                  skill.skill_id,
+                                  e.target.checked
+                                )
+                              }
+                              className="accent-emerald-500"
+                            />
+                            Accept higher levels
+                          </label>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -461,7 +568,7 @@ export default function PostOpportunityPage() {
                         />
 
                         <span className="text-sm text-slate-500">
-                          required
+                          minimum score
                         </span>
 
                         <button

@@ -173,9 +173,18 @@ export default function StudentPage() {
       }
 
       if (!user) {
-        throw new Error(
-          "You are not logged in. Please log in with a student account."
-        );
+        router.replace("/login");
+        return;
+      }
+
+      // ---------------------------------------------------------
+      // PORTAL GUARD
+      // Do not let the Industry account load the Student portal.
+      // The demo Industry account is industry@ayurbridge.demo.
+      // ---------------------------------------------------------
+      if (user.email?.toLowerCase() === "industry@ayurbridge.demo") {
+        router.replace("/industry");
+        return;
       }
 
       // ---------------------------------------------------------
@@ -224,9 +233,10 @@ export default function StudentPage() {
       }
 
       if (!studentData) {
-        throw new Error(
-          `No student profile is connected to ${user.email}. Please connect this auth account to a row in the students table.`
+        setError(
+          `No student profile is connected to ${user.email}. Please log in with a student account.`
         );
+        return;
       }
 
       setStudent(studentData);
@@ -473,8 +483,9 @@ export default function StudentPage() {
       const { data: applicationData, error: applicationError } =
         await supabase
           .from("applications")
-          .select("opportunity_id")
-          .eq("student_id", studentData.id);
+          .select("opportunity_id,status")
+          .eq("student_id", studentData.id)
+          .neq("status", "withdrawn");
 
       if (applicationError) {
         throw applicationError;
@@ -594,11 +605,56 @@ export default function StudentPage() {
         ...current,
         opportunity.id,
       ]);
+   } catch (err: any) {
+  console.error("APPLY ERROR:", err);
+
+  setError(
+    err?.message ||
+    err?.details ||
+    err?.hint ||
+    "Could not submit application."
+  );
+} finally {
+      setApplying(null);
+    }
+  }
+
+  // ---------------------------------------------------------
+  // WITHDRAW APPLICATION
+  // ---------------------------------------------------------
+  // Removing the application makes the withdrawal immediately visible
+  // in the Industry portal and also lets the student apply again later.
+  async function withdrawApplication(opportunityId: string) {
+    if (!student) return;
+
+    const confirmed = window.confirm(
+      "Withdraw this application? The industry partner will no longer see your application."
+    );
+
+    if (!confirmed) return;
+
+    setApplying(opportunityId);
+    setError("");
+
+    try {
+      const { error: deleteError } = await supabase
+        .from("applications")
+        .delete()
+        .eq("student_id", student.id)
+        .eq("opportunity_id", opportunityId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setApplications((current) =>
+        current.filter((id) => id !== opportunityId)
+      );
     } catch (err: any) {
       console.error(err);
 
       setError(
-        err?.message || "Could not submit application."
+        err?.message || "Could not withdraw application."
       );
     } finally {
       setApplying(null);
@@ -1296,10 +1352,16 @@ export default function StudentPage() {
                       ) ? (
 
                         <button
-                          disabled
-                          className="w-full mt-5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 py-3 rounded-xl font-bold"
+                          type="button"
+                          onClick={() =>
+                            withdrawApplication(opportunity.id)
+                          }
+                          disabled={applying === opportunity.id}
+                          className="w-full mt-5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 py-3 rounded-xl font-bold disabled:opacity-50 transition"
                         >
-                          ✓ Applied
+                          {applying === opportunity.id
+                            ? "Withdrawing..."
+                            : "Withdraw Application"}
                         </button>
 
                       ) : opportunity.isQualified ? (

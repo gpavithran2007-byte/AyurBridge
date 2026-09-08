@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import AssessmentModal from "./assessments/AssessmentModal";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   GraduationCap,
@@ -173,18 +174,9 @@ export default function StudentPage() {
       }
 
       if (!user) {
-        router.replace("/login");
-        return;
-      }
-
-      // ---------------------------------------------------------
-      // PORTAL GUARD
-      // Do not let the Industry account load the Student portal.
-      // The demo Industry account is industry@ayurbridge.demo.
-      // ---------------------------------------------------------
-      if (user.email?.toLowerCase() === "industry@ayurbridge.demo") {
-        router.replace("/industry");
-        return;
+        throw new Error(
+          "You are not logged in. Please log in with a student account."
+        );
       }
 
       // ---------------------------------------------------------
@@ -233,10 +225,9 @@ export default function StudentPage() {
       }
 
       if (!studentData) {
-        setError(
-          `No student profile is connected to ${user.email}. Please log in with a student account.`
+        throw new Error(
+          `No student profile is connected to ${user.email}. Please connect this auth account to a row in the students table.`
         );
-        return;
       }
 
       setStudent(studentData);
@@ -483,9 +474,8 @@ export default function StudentPage() {
       const { data: applicationData, error: applicationError } =
         await supabase
           .from("applications")
-          .select("opportunity_id,status")
-          .eq("student_id", studentData.id)
-          .neq("status", "withdrawn");
+          .select("opportunity_id")
+          .eq("student_id", studentData.id);
 
       if (applicationError) {
         throw applicationError;
@@ -605,56 +595,11 @@ export default function StudentPage() {
         ...current,
         opportunity.id,
       ]);
-   } catch (err: any) {
-  console.error("APPLY ERROR:", err);
-
-  setError(
-    err?.message ||
-    err?.details ||
-    err?.hint ||
-    "Could not submit application."
-  );
-} finally {
-      setApplying(null);
-    }
-  }
-
-  // ---------------------------------------------------------
-  // WITHDRAW APPLICATION
-  // ---------------------------------------------------------
-  // Removing the application makes the withdrawal immediately visible
-  // in the Industry portal and also lets the student apply again later.
-  async function withdrawApplication(opportunityId: string) {
-    if (!student) return;
-
-    const confirmed = window.confirm(
-      "Withdraw this application? The industry partner will no longer see your application."
-    );
-
-    if (!confirmed) return;
-
-    setApplying(opportunityId);
-    setError("");
-
-    try {
-      const { error: deleteError } = await supabase
-        .from("applications")
-        .delete()
-        .eq("student_id", student.id)
-        .eq("opportunity_id", opportunityId);
-
-      if (deleteError) {
-        throw deleteError;
-      }
-
-      setApplications((current) =>
-        current.filter((id) => id !== opportunityId)
-      );
     } catch (err: any) {
       console.error(err);
 
       setError(
-        err?.message || "Could not withdraw application."
+        err?.message || "Could not submit application."
       );
     } finally {
       setApplying(null);
@@ -782,7 +727,7 @@ export default function StudentPage() {
 
             <button
               type="button"
-              onClick={() => document.getElementById("learning")?.scrollIntoView({ behavior: "smooth" })}
+              onClick={() => router.push("/student/courses")}
               className="hover:text-white transition"
             >
               Courses
@@ -871,15 +816,6 @@ export default function StudentPage() {
                   </span>
 
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => router.push("/student/profile")}
-                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-emerald-500/10 border border-slate-700 hover:border-emerald-500/30 text-slate-200 hover:text-emerald-300 text-sm font-semibold transition"
-                >
-                  <User className="h-4 w-4" />
-                  Edit Profile
-                </button>
 
               </div>
 
@@ -1352,16 +1288,10 @@ export default function StudentPage() {
                       ) ? (
 
                         <button
-                          type="button"
-                          onClick={() =>
-                            withdrawApplication(opportunity.id)
-                          }
-                          disabled={applying === opportunity.id}
-                          className="w-full mt-5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 py-3 rounded-xl font-bold disabled:opacity-50 transition"
+                          disabled
+                          className="w-full mt-5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 py-3 rounded-xl font-bold"
                         >
-                          {applying === opportunity.id
-                            ? "Withdrawing..."
-                            : "Withdraw Application"}
+                          ✓ Applied
                         </button>
 
                       ) : opportunity.isQualified ? (
@@ -1473,7 +1403,11 @@ export default function StudentPage() {
                   Current score: {skill.proficiency}%
                 </p>
 
-                <button className="mt-5 text-sm text-emerald-400 font-semibold flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/student/courses")}
+                  className="mt-5 text-sm text-emerald-400 font-semibold flex items-center gap-2 hover:text-emerald-300 transition"
+                >
                   Start Learning
                   <ArrowRight className="h-4 w-4" />
                 </button>
